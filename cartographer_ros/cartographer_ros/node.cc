@@ -201,11 +201,21 @@ void Node::AddExtrapolator(const int trajectory_id,
                 .imu_gravity_time_constant()
           : options.trajectory_builder_options.trajectory_builder_2d_options()
                 .imu_gravity_time_constant();
+  // Matches the local trajectory builder's gap handling so the published pose
+  // dead-reckons on real odometry across scan gaps instead of extending a
+  // stale velocity estimate.
+  const double odometry_pose_extrapolation_gap_threshold =
+      node_options_.map_builder_options.use_trajectory_builder_3d()
+          ? 0.
+          : options.trajectory_builder_options.trajectory_builder_2d_options()
+                .pose_extrapolator_options()
+                .constant_velocity()
+                .odometry_pose_extrapolation_gap_threshold();
   extrapolators_.emplace(
       std::piecewise_construct, std::forward_as_tuple(trajectory_id),
       std::forward_as_tuple(
           ::cartographer::common::FromSeconds(kExtrapolationEstimationTimeSec),
-          gravity_time_constant));
+          gravity_time_constant, odometry_pose_extrapolation_gap_threshold));
 }
 
 void Node::AddSensorSamplers(const int trajectory_id,
