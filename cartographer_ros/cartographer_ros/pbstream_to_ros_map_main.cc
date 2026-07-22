@@ -31,9 +31,28 @@ DEFINE_string(pbstream_filename, "",
               "Filename of a pbstream to draw a map from.");
 DEFINE_string(map_filestem, "map", "Stem of the output files.");
 DEFINE_double(resolution, 0.05, "Resolution of a grid cell in the drawn map.");
+DEFINE_int32(
+    unknown_gray, 205,
+    "Grayscale value to write for unobserved cells in the output PGM.");
 
 namespace cartographer_ros {
 namespace {
+
+void NormalizeUnknownCells(::cartographer::io::Image* image,
+                           const int unknown_gray) {
+  CHECK_GE(unknown_gray, 0);
+  CHECK_LE(unknown_gray, 255);
+  for (int y = 0; y < image->height(); ++y) {
+    for (int x = 0; x < image->width(); ++x) {
+      const auto pixel = image->GetPixel(x, y);
+      if (pixel[1] == 0) {
+        image->SetPixel(x, y,
+                        {{static_cast<uint8_t>(unknown_gray), pixel[1],
+                          pixel[2]}});
+      }
+    }
+  }
+}
 
 void Run(const std::string& pbstream_filename, const std::string& map_filestem,
          const double resolution) {
@@ -55,6 +74,9 @@ void Run(const std::string& pbstream_filename, const std::string& map_filestem,
   ::cartographer::io::StreamFileWriter pgm_writer(map_filestem + ".pgm");
 
   ::cartographer::io::Image image(std::move(result.surface));
+  // Preserve Simbe's historical unknown-cell gray in exported PGM maps.
+  // This only affects the saved map image, not live OccupancyGrid messages.
+  NormalizeUnknownCells(&image, FLAGS_unknown_gray);
   WritePgm(image, resolution, &pgm_writer);
 
   const Eigen::Vector2d origin(
